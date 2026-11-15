@@ -1,14 +1,21 @@
 import datetime
+import os
+from dataclasses import dataclass
+from typing import Dict, List, Tuple, Any, Optional
+
+import geonamescache
+import pytz
 import streamlit as st
 import swisseph as swe
+from timezonefinder import TimezoneFinder
 
 # =============================================================================
 # إعدادات Swiss Ephemeris والتنسيق البصري العربي (RTL)
 # =============================================================================
-swe.set_ephe_path('')
+swe.set_ephe_path('')  # استخدام وضع Moshier الافتراضي للتقويم الفلكي الدقيق
 
 st.set_page_config(
-    page_title="حاسبة صلاحية الزواج الفلكية",
+    page_title="حاسبة صلاحية الزواج الفلكية المتقدمة",
     layout="wide",
     page_icon="⚖️"
 )
@@ -65,8 +72,82 @@ st.markdown("""
         box-shadow: 0 2px 10px rgba(0,0,0,0.05);
         border: 1px solid #e2e8f0;
     }
+    .rec-box {
+        background: #f8fafc;
+        border-right: 5px solid #2563eb;
+        padding: 16px;
+        border-radius: 8px;
+        margin-top: 15px;
+        border: 1px solid #e2e8f0;
+    }
 </style>
 """, unsafe_allow_html=True)
+
+# =============================================================================
+# قواعد البيانات الجغرافية ودوال التحميل التلقائي
+# =============================================================================
+@dataclass
+class City:
+    geonameid: str
+    name: str
+    country_code: str
+    latitude: float
+    longitude: float
+    admin1: str
+    population: int
+
+    def __getitem__(self, key):
+        return getattr(self, key)
+    
+    def get(self, key, default=None):
+        return getattr(self, key, default)
+
+@st.cache_data
+def load_cities():
+    gc = geonamescache.GeonamesCache()
+    cities_list = []
+    for city_id, city_data in gc.get_cities().items():
+        if city_data.get("population", 0) >= 15000:
+            cities_list.append(
+                City(
+                    geonameid=city_id,
+                    name=city_data.get("name", ""),
+                    country_code=city_data.get("countrycode", ""),
+                    latitude=city_data.get("latitude", 0.0),
+                    longitude=city_data.get("longitude", 0.0),
+                    admin1=city_data.get("admin1code", ""),
+                    population=city_data.get("population", 0),
+                )
+            )
+    return cities_list
+
+@st.cache_data
+def load_countries():
+    gc = geonamescache.GeonamesCache()
+    return gc.get_countries()
+
+@st.cache_data
+def load_geo_data():
+    countries = load_countries()
+    cities = load_cities()
+
+    country_map = {c["name"]: code for code, c in countries.items()}
+    sorted_countries = sorted(list(country_map.keys()))
+
+    cities_by_country = {}
+    for c_code in country_map.values():
+        c_cities = [
+            city for city in cities if city.country_code == c_code
+        ]
+        c_cities_sorted = sorted(
+            c_cities, key=lambda x: x.population, reverse=True
+        )
+        cities_by_country[c_code] = c_cities_sorted
+
+    return country_map, sorted_countries, cities_by_country
+
+country_map, country_list, cities_by_country = load_geo_data()
+tf = TimezoneFinder()
 
 # =============================================================================
 # المعاجم الفلكية والكرامات الأساسية
@@ -124,7 +205,7 @@ FALLS = {
 }
 
 # =============================================================================
-# دوال الحسابات الفلكية وتقييم القوى مع مراعاة كافة الاتصالات
+# دوال الحسابات الفلكية وتقييم القوى
 # =============================================================================
 def angular_diff(lon1, lon2):
     diff = abs(lon1 - lon2) % 360
@@ -144,16 +225,14 @@ def get_aspect_between(lon1, lon2):
         return "مقابلة (180°)"
     return None
 
-def evaluate_personal_planet_score(planet_name, planet_lon, personal_planets_data):
-    """
-    تقييم قوة الكوكب الشخصي من 5 نقاط مع مراعاة الهبوط، الشرف، الوباء،
-    وكافة الاتصالات الفلكية مع الكواكب الشخصية الأخرى.
-    """
-    score = 2.0  # نقطة الأساس (متوسط)
+def evaluate_personal_planet_score(planet_name, planet_lon, personal_planets_data, use_house_weight=False):
+    score = 2.0  
     reasons = ["نقطة الأساس: 2.0"]
+    p_entry = personal_planets_data[planet_name]
     sign_idx = int(planet_lon / 30) % 12
+    house_num = p_entry["whole_sign_house"]
 
-    # 1. الكرامات الأساسية
+    # 1. الحظوظ الذاتية (البيت والشرف)
     if SIGN_RULERS.get(sign_idx) == planet_name:
         score += 1.5
         reasons.append("في بيته (+1.5)")
@@ -161,17 +240,35 @@ def evaluate_personal_planet_score(planet_name, planet_lon, personal_planets_dat
         score += 2.0
         reasons.append("في شرفه (+2.0)")
 
+    # 2. الانتكاسات الذاتية (الوبال والهبوط مع منع التصفير المزدوج غير المتوازن لعطارد في الحوت)
     det_val = DETRIMENTS.get(planet_name)
     is_detriment = (isinstance(det_val, list) and sign_idx in det_val) or (det_val == sign_idx)
-    if is_detriment:
-        score -= 1.0
-        reasons.append("في وباله (-1.0)")
+    is_fall = (FALLS.get(planet_name) == sign_idx)
 
-    if FALLS.get(planet_name) == sign_idx:
-        score -= 1.5
-        reasons.append("في هبوطه (-1.5)")
+    if is_detriment and is_fall:
+        score -= 1.75
+        reasons.append("في وباله وهبوطه معاً (-1.75)")
+    else:
+        if is_detriment:
+            score -= 1.0
+            reasons.append("في وباله (-1.0)")
+        if is_fall:
+            score -= 1.5
+            reasons.append("في هبوطه (-1.5)")
 
-    # 2. دراسة كافة الاتصالات الفلكية مع الكواكب الشخصية الأخرى
+    # 3. وزن البيوت الفلكية (الأوتاد والمثلثات الصالحة مقابل البيوت الساقطة) عند توفر ساعة الميلاد
+    if use_house_weight:
+        if house_num in [1, 4, 7, 10]:
+            score += 0.5
+            reasons.append(f"في بيت وتد [البيت {house_num}] (+0.5)")
+        elif house_num in [5, 9, 11]:
+            score += 0.25
+            reasons.append(f"في بيت سعيد [البيت {house_num}] (+0.25)")
+        elif house_num in [6, 8, 12]:
+            score -= 0.5
+            reasons.append(f"في بيت ساقط [البيت {house_num}] (-0.5)")
+
+    # 4. الاتصالات الفلكية بين الكواكب الشخصية
     for other_p, other_data in personal_planets_data.items():
         if other_p == planet_name:
             continue
@@ -211,6 +308,87 @@ def get_strength_label(score):
         return "ضعيف", "🔴"
 
 # =============================================================================
+# دالة تقديم الحلول والعلاجات الفلكية المتقدمة وفق أحدث مراجع التنجيم الغربي الحديث
+# =============================================================================
+def get_advanced_recommendations(gender, venus_sc, moon_sc, sun_sc, mars_sc, fem_power, masc_power):
+    recommendations = []
+    
+    is_venus_strong = venus_sc >= 3.0
+    is_moon_strong = moon_sc >= 3.0
+    is_sun_strong = sun_sc >= 3.0
+    is_mars_strong = mars_sc >= 3.0
+    
+    if gender == "أنثى":
+        if is_venus_strong and is_moon_strong and (fem_power > masc_power):
+            recommendations.append("✨ **حالة متوازنة وممتازة:** لا تحتاجين إلى نصائح إضافية، فطاقة الأنوثة والقمر والزهرة في أعلى مستويات التناغم الداخلي والخارجي وفقاً لدلائل التنجيم الحديث.")
+        else:
+            if is_venus_strong and not is_moon_strong:
+                recommendations.append("🏡 **دعم الجانب المنزلي والعاطفي (تقوية كوكب القمر فلكياً):**")
+                recommendations.append("جلب مربية أو مساعدة كفوءة لتنظيم التدبير المنزلي ورعاية الشؤون اليومية.")
+                recommendations.append("قراءة كتب تعليم الطبخ، فن التدبير المنزلي، وكيفية الاعتناء بالأطفال وتربيتهم التربية الواعية.")
+                recommendations.append("🌙 **فلكياً - تقوية طاقة القمر (وفق مراجع التنجيم الغربي الحديث وعلم الأعشاب الطبية):**")
+                recommendations.append("**دلائل القمر:** الارتباط بالطبيعة الدورية، الهدوء الداخلي، العناية بالبيئة المنزلية، والاتصال العاطفي العميق بالماء والحدائق.")
+                recommendations.append("**الأعشاب:** البابونج الألماني، زهرة الآلام (Passionflower)، والمليسا (تُشرب على شكل منقوع فاتر مساءً للاسترخاء العاطفي).")
+                recommendations.append("**الأطعمة:** الخضروات الورقية ذات الأوراق العريضة، الأغذية الغنية بالسوائل الطبيعية، منتجات الألبان الطازجة، والقرع.")
+                recommendations.append("**المشروبات:** الماء النقي المفوّر، الحليب النباتي أو الحيواني الدافئ مع قليل من العسل الطبيعي.")
+            
+            if not is_venus_strong and is_moon_strong:
+                recommendations.append("💖 **دعم جانب الثقافة الزوجية والعلاقة (تقوية كوكب الزهرة فلكياً):**")
+                recommendations.append("زيادة قراءة كتب الثقافة الزوجية، فن الحوار مع الشريك، وأسس بناء العلاقات العاطفية الناجحة.")
+                recommendations.append("🌹 **فلكياً - تقوية طاقة الزهرة (وفق مراجع التنجيم الغربي الحديث):**")
+                recommendations.append("**دلائل الزهرة:** الجمال الحسي، الانسجام والتوافق، العناية بالمظهر الراقي، وتنسيق البيئة المحيطة بالألوان الهادئة والعطور الزكية.")
+                recommendations.append("**الأعشاب:** بتلات الورد المحمدي، الفانيليا الطبيعية، واللافندر (تُستعمل كشراب لطيف أو عطور منزلية مهدئة).")
+                recommendations.append("**الأطعمة:** الفواكه الطازجة ذات الطابع الحلو والمغذي (التوت البري، الفراولة، التين، والرمان)، الشوكولاتة الداكنة النقية.")
+                recommendations.append("**المشروبات:** شاي بتلات الورد الفاتر، العصائر الطبيعية المنسقة بعناية.")
+            
+            if (not is_venus_strong and not is_moon_strong) or (fem_power <= masc_power):
+                recommendations.append("🛠️ **برنامج متكامل لتعزيز مهارات الزواج والتدبير (تقوية الزهرة والقمر معاً):**")
+                recommendations.append("قراءة كتب الثقافة الزوجية وبناء الألفة والتفاهم المستدام.")
+                recommendations.append("جلب مربية أو مساعدة للتدبير المنزلي وتنظيم شؤون الأسرة.")
+                recommendations.append("قراءة كتب تعليم الطبخ، التدبير المنزلي، وأصول تربية الأطفال الحديثة.")
+                recommendations.append("🌸 **فلكياً - تقوية طاقة الزهرة والقمر:**")
+                recommendations.append("**دلائل الزهرة:** الجمال الحسي، الانسجام والتوافق، العناية بالمظهر الراقي، وتنسيق البيئة المحيطة بالألوان الهادئة والعطور الزكية.")
+                recommendations.append("**دلائل القمر:** الارتباط بالطبيعة الدورية، الهدوء الداخلي، العناية بالبيئة المنزلية، والاتصال العاطفي العميق بالماء والحدائق.")
+                recommendations.append("**الأعشاب:** دمج البابونج (للقمر) مع بتلات الورد (للزهرة) في منقوع مسائي مهدئ.")
+                recommendations.append("**الأطعمة والمشروبات:** التركيز على الأغذية الطازجة المتوازنة، شرب السوائل بانتظام، والاهتمام بالجانب الجمالي للوجبات الغذائية.")
+
+    else:  # ذكر
+        if (masc_power > fem_power) and is_sun_strong and is_mars_strong:
+            recommendations.append("👑 **حالة ذكورية قيادية متوازنة:** لا تحتاج إلى نصائح إضافية، فطاقة الشمس والمريخ تدعمك بكفاءة عالية للقيادة وتحمل المسؤولية والإنجاب.")
+        else:
+            if is_sun_strong and not is_mars_strong:
+                recommendations.append("🛠️ **دعم الجانب البدني والمهاري المنزلي (تقوية كوكب المريخ فلكياً):**")
+                recommendations.append("التعاقد مع شركة صيانة منزلية دورية أو التسجيل في دورات متخصصة في أعمال الصيانة اليدوية والمنزلية.")
+                recommendations.append("الاهتمام بالتمارين الرياضية المنتظمة، اللياقة البدنية، والصحة الإنجابية والجسدية.")
+                recommendations.append("🔥 **فلكياً - تقوية طاقة المريخ (وفق مراجع التنجيم الغربي الحديث):**")
+                recommendations.append("**دلائل المريخ:** الحركة الجسدية الواعية، النشاط الرياضي، الحيوية الحركية، والشجاعة في مواجهة التحديات العملية.")
+                recommendations.append("**الأعشاب:** جذور الزنجبيل الطازج، القرفة، والزعتر البري (تُشرب كمغلي دافئ لتحفيز الدورة الدموية وطاقة الحركة).")
+                recommendations.append("**الأطعمة:** اللحوم الحمراء الصحية، البروتينات عالية الجودة، التوابل الدافئة المعتدلة (الفلفل الأسود، الثوم)، والمكسرات الغنية بالطاقة.")
+                recommendations.append("**المشروبات:** شاي الزنجبيل بالقرفة، المشروبات الدافئة المنشطة للطاقة الجسدية.")
+            
+            if not is_sun_strong and is_mars_strong:
+                recommendations.append("👔 **دعم الجانب القيادي والإداري الأسري (تقوية كوكب الشمس فلكياً):**")
+                recommendations.append("حضور دورات تدريبية متخصصة في تقوية الشخصية، الإدارة الاستراتيجية، والقيادة الأسرية الفعالة.")
+                recommendations.append("☀️ **فلكياً - تقوية طاقة الشمس (وفق مراجع التنجيم الغربي الحديث):**")
+                recommendations.append("**دلائل الشمس:** الحيوية المركزية، الوضوح الإداري، الثقة العالية بالنفس، والتعرض المعتدل لأشعة الشمس الصباحية لبناء الطاقة الحيوية.")
+                recommendations.append("**الأعشاب:** إكليل الجبل (الروزماري)، عشبة الليمون (Lemongrass)، والبابونج الإيجابي.")
+                recommendations.append("**الأطعمة:** الحمضيات الطازجة الغنية بفيتامين سي (البرتقال، الليمون، الجريب فروت)، الحبوب الكاملة، والعسل الطبيعي النقي.")
+                recommendations.append("**المشروبات:** ماء دافئ مع قطرات الليمون الطازج صباحاً، شاي إكليل الجبل المنعش.")
+            
+            if (not is_sun_strong and not is_mars_strong) or (masc_power <= fem_power):
+                recommendations.append("🚀 **برنامج مكثف لتطوير المهارات الشخصية والقيادية والمنزلية (تقوية الشمس والمريخ معاً):**")
+                recommendations.append("الانتظام في التمارين الرياضية وبناء اللياقة البدنية بانتظام.")
+                recommendations.append("حضور دورات متخصصة في تطوير الذات، تقوية الشخصية، والثقة بالنفس.")
+                recommendations.append("حضور دورات تدريبية في الصيانة المنزلية وإدارة شؤون البيت الأساسية.")
+                recommendations.append("⚡ **فلكياً - تقوية طاقة المريخ والشمس:**")
+                recommendations.append("**دلائل المريخ:** الحركة الجسدية الواعية، النشاط الرياضي، الحيوية الحركية، والشجاعة في مواجهة التحديات العملية.")
+                recommendations.append("**دلائل الشمس:** الحيوية المركزية، الوضوح الإداري، الثقة العالية بالنفس، والتعرض المعتدل لأشعة الشمس الصباحية لبناء الطاقة الحيوية.")
+                recommendations.append("**الأعشاب والمشروبات:** شاي الزنجبيل والقرفة صباحاً (للمريخ) مع شاي إكليل الجبل والليمون عصراً (للشمس).")
+                recommendations.append("**الأطعمة:** الأغذية الغنية بالبروتين، الخضروات الجذرية الطازجة، الحمضيات، والعسل الطبيعي.")
+
+    return recommendations
+
+# =============================================================================
 # مولد تقرير HTML الاحترافي للطباعة والتحميل
 # =============================================================================
 def generate_html_report(data):
@@ -236,12 +414,20 @@ def generate_html_report(data):
         """
 
     bullets_html = "".join([f"<li>{b}</li>" for b in data["diag_bullets"]])
+    
+    recs_html = ""
+    for r in data["recommendations"]:
+        clean_r = r.replace("**", "")
+        if r.startswith(("✨", "🏡", "💖", "🛠️", "👑", "👔", "🔥", "☀️", "🚀", "🌙", "🌹", "🌸", "⚡")):
+            recs_html += f"<h4 style='color:#1e3a8a; margin:14px 0 6px 0;'>{clean_r}</h4>"
+        else:
+            recs_html += f"<p style='margin:4px 0 4px 12px;'>• {clean_r}</p>"
 
     html = f"""<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <title>تقرير التوافق الشخصي والزواج الفلكي - {data['name']}</title>
+    <title>تقرير صلاحية الزواج الفلكي المتقدم - {data['name']}</title>
     <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@700&family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         body {{
@@ -288,7 +474,7 @@ def generate_html_report(data):
         }}
         .info-grid {{
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 12px;
             margin-bottom: 20px;
         }}
@@ -305,7 +491,7 @@ def generate_html_report(data):
             color: #64748b;
         }}
         .info-box strong {{
-            font-size: 15px;
+            font-size: 14px;
             color: #0d1b2a;
         }}
         table {{
@@ -353,6 +539,7 @@ def generate_html_report(data):
             border-left: 1px solid #e2e8f0;
             border-radius: 10px;
             padding: 22px;
+            margin-bottom: 20px;
         }}
         .diagnosis-box h3 {{
             color: {data['title_color']};
@@ -364,6 +551,19 @@ def generate_html_report(data):
             margin: 10px 0 0 0;
             padding-right: 22px;
             line-height: 1.8;
+        }}
+        .rec-box {{
+            background: #f8fafc;
+            border-right: 5px solid #2563eb;
+            padding: 18px;
+            border-radius: 8px;
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+            line-height: 1.9;
+        }}
+        .rec-box h3 {{
+            color: #1e3a8a;
+            margin-top: 0;
         }}
         .footer {{
             text-align: center;
@@ -382,15 +582,16 @@ def generate_html_report(data):
 <body>
 <div class="container">
     <div class="header">
-        <h1>تقرير صلاحية الزواج</h1>
-        <p>دراسة الكواكب الشخصية وفق نظام كل برج بيت مع تقدير القمر رياضيا - استرو رادار</p>
+        <h1>تقرير صلاحية الزواج الفلكي المتقدم</h1>
+        <p>دراسة صلاحية الكواكب الشخصية للزواج وفق نظام كل برج بيت - استرو رادار</p>
     </div>
 
     <div class="section-title">البيانات الأساسية</div>
     <div class="info-grid">
         <div class="info-box"><span>الاسم</span><strong>{data['name']}</strong></div>
         <div class="info-box"><span>الجنس</span><strong>{data['gender']}</strong></div>
-        <div class="info-box"><span>تاريخ الميلاد</span><strong>{data['birth_date']}</strong></div>
+        <div class="info-box"><span>تاريخ وساعة الميلاد</span><strong>{data['birth_date']} ({data['birth_time_label']})</strong></div>
+        <div class="info-box"><span>موقع الولادة والطالع</span><strong>{data['location']} ({data['asc_label']})</strong></div>
     </div>
 
     <div class="section-title">تقييم الكواكب الشخصية الخمسة (من 5 نقاط)</div>
@@ -433,8 +634,13 @@ def generate_html_report(data):
         <ul>{bullets_html}</ul>
     </div>
 
+    <div class="rec-box">
+        <h3>💡 التوصيات والإرشادات العملية وعلاجات تقوية الكواكب فلكياً:</h3>
+        {recs_html}
+    </div>
+
     <div class="footer">
-        <p>تقرير صادر آلياً — نظام كل برج بيت (Whole Sign) وتقدير موقع القمر رياضياً عند منتصف اليوم</p>
+        <p>تقرير صادر آلياً — نظام كل برج بيت (Whole Sign) وموقع جغرافية الحدث وتوقيت الميلاد ودلائل التنجيم الحديث — استرو رادار</p>
     </div>
 </div>
 </body>
@@ -443,41 +649,97 @@ def generate_html_report(data):
     return html
 
 # =============================================================================
-# واجهة المستخدم في Streamlit
+# واجهة المستخدم في Streamlit (الشريط الجانبي والواجهة الرئيسية)
 # =============================================================================
 st.markdown("""
 <div class="main-header">
-    <h1>حاسبة صلاحية الزواج الفلكية</h1>
-    <p>تقييم الكواكب الشخصية لمعرفة الصلاحية للزواج - استرو رادار</p>
+    <h1>حاسبة صلاحية الزواج الفلكية المتقدمة</h1>
+    <p>تقييم الكواكب الشخصية للزواج و تحديد الحلول و الإرشادات الفلكية بناءً على أحدث مراجع التنجيم - استرو رادار</p>
 </div>
 """, unsafe_allow_html=True)
 
-with st.container():
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        name = st.text_input("الاسم", "سارة")
-    with col2:
-        gender = st.selectbox("الجنس", ["أنثى", "ذكر"], index=0)
-    with col3:
-        birth_date = st.date_input("تاريخ الميلاد", value=datetime.date(2010, 1, 1), min_value=datetime.date(1960, 1, 1))
+with st.sidebar:
+    st.header("👤 بيانات الشخص")
+    name = st.text_input("الاسم", "سارة")
+    gender = st.selectbox("الجنس", ["أنثى", "ذكر"], index=0)
+    birth_date = st.date_input("تاريخ الميلاد", value=datetime.date(2010, 1, 1), min_value=datetime.date(1950, 1, 1))
 
-submit = st.button("🔮 تنفيذ التحليل الفلكي وتوليد التقرير", type="primary")
+    st.markdown("---")
+    st.header("⏰ توقيت الميلاد")
+    time_option = st.radio("معرفة ساعة الميلاد:", ["عدم معرفة ساعة الميلاد", "معرفة ساعة الميلاد"])
+    
+    birth_time_obj = datetime.time(12, 0)
+    if time_option == "معرفة ساعة الميلاد":
+        birth_time_str = st.text_input("أدخل ساعة الميلاد (بتنسيق HH:MM):", value="14:30")
+        try:
+            parts = list(map(int, birth_time_str.split(":")))
+            h = parts[0]
+            m = parts[1] if len(parts) > 1 else 0
+            s = parts[2] if len(parts) > 2 else 0
+            birth_time_obj = datetime.time(h, m, s)
+        except Exception:
+            st.warning("⚠️ تنسيق الوقت غير صحيح، سيتم افتراض الساعة 12:00 بالمنتصف.")
+            birth_time_obj = datetime.time(12, 0)
+
+    st.markdown("---")
+    st.header("🌍 موقع الولادة الجغرافي")
+    selected_country_name = st.selectbox("اختر الدولة:", country_list)
+    country_code = country_map[selected_country_name]
+    country_cities = cities_by_country.get(country_code, [])
+    city_names = [c.name for c in country_cities]
+
+    if city_names:
+        selected_city_name = st.selectbox("اختر المدينة:", city_names)
+        selected_city = next((c for c in country_cities if c.name == selected_city_name), country_cities[0])
+        lat = selected_city.latitude
+        lon = selected_city.longitude
+        location_label = f"{selected_city_name}, {selected_country_name}"
+    else:
+        lat, lon = 25.2048, 55.2708
+        location_label = selected_country_name
+
+    tz_str = tf.timezone_at(lat=lat, lng=lon) or "UTC"
+    st.info(f"📍 الإحداثيات: {lat:.2f}°, {lon:.2f}°\n\n⏰ المنطقة الزمنية: `{tz_str}`")
+
+submit = st.button("🔮 تنفيذ التحليل الفلكي الشامل وتوليد التقرير", type="primary")
 
 if submit:
-    # تقدير موقع القمر وبقية الكواكب رياضياً عند منتصف اليوم (12:00 UTC) لعدم توفر ساعة الميلاد
-    jd = swe.julday(birth_date.year, birth_date.month, birth_date.day, 12.0)
+    # حساب التوقيت العالمي (UTC) واليوم اليولياني بدقة تامة
+    local_tz = pytz.timezone(tz_str)
+    has_birth_time = (time_option == "معرفة ساعة الميلاد")
+    naive_dt = datetime.datetime.combine(birth_date, birth_time_obj if has_birth_time else datetime.time(12, 0))
+    
+    try:
+        localized_dt = local_tz.localize(naive_dt, is_dst=None)
+    except Exception:
+        try:
+            localized_dt = local_tz.localize(naive_dt, is_dst=False)
+        except Exception:
+            localized_dt = local_tz.localize(naive_dt)
+
+    utc_dt = localized_dt.astimezone(pytz.utc)
+    decimal_hour = utc_dt.hour + utc_dt.minute / 60.0 + utc_dt.second / 3600.0
+    jd = swe.julday(utc_dt.year, utc_dt.month, utc_dt.day, decimal_hour)
 
     raw_lons = {}
     for p_name, p_id in PLANET_IDS.items():
         res = swe.calc_ut(jd, p_id)
         raw_lons[p_name] = res[0][0]
 
-    sun_sign_idx = int(raw_lons["Sun"] / 30) % 12
+    # نظام كل برج بيت: إذا توفرت ساعة الميلاد يتم حساب برج الطالع كبداية للبيت الأول، وإلا فيعتمد برج الشمس
+    if has_birth_time:
+        houses_cusps, ascmc = swe.houses_ex(jd, lat, lon, b'W')
+        asc_lon = ascmc[0]
+        house_start_sign = int(asc_lon / 30) % 12
+        asc_label = f"الطالع: {ZODIAC_NAMES_AR[house_start_sign]} ({asc_lon % 30:.1f}°)"
+    else:
+        house_start_sign = int(raw_lons["Sun"] / 30) % 12
+        asc_label = f"طالع شمسي: {ZODIAC_NAMES_AR[house_start_sign]}"
 
     planets_data = {}
     for p_name, p_lon in raw_lons.items():
         sign_idx = int(p_lon / 30) % 12
-        whole_sign_house = ((sign_idx - sun_sign_idx) % 12) + 1
+        whole_sign_house = ((sign_idx - house_start_sign) % 12) + 1
         planets_data[p_name] = {
             "lon": p_lon,
             "sign_idx": sign_idx,
@@ -489,12 +751,17 @@ if submit:
     scores = {}
     reasons = {}
     for p_name in ["Sun", "Moon", "Mercury", "Venus", "Mars"]:
-        sc, r_list = evaluate_personal_planet_score(p_name, planets_data[p_name]["lon"], planets_data)
+        sc, r_list = evaluate_personal_planet_score(
+            p_name,
+            planets_data[p_name]["lon"],
+            planets_data,
+            use_house_weight=has_birth_time
+        )
         scores[p_name] = sc
         reasons[p_name] = r_list
 
     st.markdown("---")
-    st.markdown(f"### 📊 نتائج تحليل الكواكب الشخصية لـ ({name}) — الجنس: ({gender})")
+    st.markdown(f"### 📊 نتائج تحليل الكواكب الشخصية لـ ({name}) — الجنس: ({gender}) — الموقع: ({location_label})")
 
     col_res1, col_res2 = st.columns([1.3, 1])
     with col_res1:
@@ -509,12 +776,12 @@ if submit:
     with col_res2:
         st.markdown("#### ℹ️ المنهجية الفلكية المعتمدة:")
         st.info(
-            "- **نظام كل برج بيت (Whole Sign):** تم اعتماد برج الشمس طالعاً افتراضياً (البيت الأول).\n"
-            "- **تقدير القمر رياضياً:** تم احتساب موضع القمر في منتصف اليوم الفلكي (12:00 UTC).\n"
-            "- **المقياس:** 3 فأكثر = قوي | 2 = متوسط | 1 فأقل أو سالب = ضعيف."
+            f"- **ساعة الميلاد:** {'معروفة (' + str(birth_time_obj) + ')' if has_birth_time else 'غير معروفة (تقدير منتصف النهار المحلي)'}\n"
+            f"- **مرجعية البيوت:** {asc_label} (نظام كل برج بيت Whole Sign).\n"
+            "- **تقدير القمر والكواكب:** محسوبة رياضياً عبر خوارزمية Swiss Ephemeris بدقة تامة.\n"
+            "- **المقياس:** 3 فأكثر = قوي | 2 = متوسط | 1 فأقل = ضعيف."
         )
 
-    # استخراج القيم
     sun_sc = scores["Sun"]
     moon_sc = scores["Moon"]
     mercury_sc = scores["Mercury"]
@@ -536,7 +803,6 @@ if submit:
     c_p1.metric("مجموع طاقة الأنوثة (الزهرة + القمر)", f"{fem_power} نقطة")
     c_p2.metric("مجموع طاقة الذكورة (الشمس + المريخ)", f"{masc_power} نقطة")
 
-    # تقييم عطارد للجنسين
     mercury_lbl, _ = get_strength_label(mercury_sc)
     if is_mercury_strong:
         mercury_text = "عطارد قوي (جيد جداً للجنسين): يدل على رجاحة العقل، سرعة الفهم، وحسن التواصل والحوار لحل الخلافات الزوجية."
@@ -546,7 +812,7 @@ if submit:
         st.warning(f"🟡 **{mercury_text}**")
 
     # =========================================================================
-    # تطبيق شروط الأنثى والذكر بحذافيرها بدقة تامة
+    # التشخيص وشروط الأنثى والذكر
     # =========================================================================
     diag_title = ""
     diag_summary = ""
@@ -571,7 +837,7 @@ if submit:
             diag_title = "✅ تصلح للزواج، الإنجاب، رعاية الأطفال، التدبير المنزلي، والأنوثة"
             diag_summary = f"زهرة قوية ({venus_sc}) + قمر قوي ({moon_sc}) + (الزهرة + القمر > الشمس + المريخ):"
             diag_bullets = [
-                "أنوثة مكتملة: الاهتمام بالجسد من زينة وعطور ومكياج وإزالة الشعر والعناية بالمظهر.",
+                "أنوثة مكتملة: الاهتمام بالجسد والزينة والعناية بالمظهر.",
                 "أمومة واعية: قدرة عالية على رعاية الأطفال وتربيتهم بحنان وعاطفة صادقة.",
                 "ربة منزل بارعة: إتقان التدبير المنزلي وإشاعة الدفء والاستقرار في عش الزوجية."
             ]
@@ -584,7 +850,7 @@ if submit:
             diag_summary = f"قمر قوي ({moon_sc}) + زهرة ضعيفة ({venus_sc}) + (الزهرة + القمر > الشمس + المريخ):"
             diag_bullets = [
                 "مؤهلة تماماً للإنجاب، رعاية الأطفال، وتدبير شؤون المنزل بمسؤولية وعملية عالية.",
-                "يقل اهتمامها بالزينة الشكلية والمكياج والمتع الحسية، حيث يكون تركيزها الأساسي منصباً على واجبات الأمومة والاستقرار العائلي."
+                "يقل اهتمامها بالزينة الشكلية والمتع الحسية، حيث يكون تركيزها الأساسي منصباً على واجبات الأمومة والاستقرار العائلي."
             ]
             border_color = "#d97706"
             bg_tint = "#fffbeb"
@@ -612,7 +878,6 @@ if submit:
             title_color = "#1e40af"
 
     else:
-        # شروط الرجل (ذكر) بحذافيرها بدقة
         if (masc_power <= fem_power) or (sun_sc < 3.0 and mars_sc < 3.0):
             diag_title = "❌ لا يصلح للزواج"
             diag_summary = f"مجموع (الشمس {sun_sc} + المريخ {mars_sc} = {masc_power}) ≤ (القمر + الزهرة {fem_power}) أو كلاهما ضعيفان (< 3.0):"
@@ -667,7 +932,6 @@ if submit:
                 bg_tint = "#f0fdf4"
                 title_color = "#047857"
 
-    # عرض النتيجة في الواجهة
     bullets_ui = "".join([f"<li>{b}</li>" for b in diag_bullets])
     st.markdown(f"""
     <div class="result-card" style="border-right-color: {border_color}; background-color: {bg_tint};">
@@ -677,11 +941,28 @@ if submit:
     </div>
     """, unsafe_allow_html=True)
 
-    # توليد وتنزيل تقرير HTML
+    # توليد التوصيات المتقدمة والعلاجات الفلكية الطبيعية
+    recommendations = get_advanced_recommendations(gender, venus_sc, moon_sc, sun_sc, mars_sc, fem_power, masc_power)
+    
+    st.markdown("""
+    <div class="rec-box">
+        <h3>💡 التوصيات والإرشادات العملية وعلاجات تقوية الكواكب فلكياً (وفق أحدث المراجع):</h3>
+    </div>
+    """, unsafe_allow_html=True)
+    for rec in recommendations:
+        if rec.startswith(("✨", "🏡", "💖", "🛠️", "👑", "👔", "🔥", "☀️", "🚀", "🌙", "🌹", "🌸", "⚡")):
+            st.markdown(f"#### {rec}")
+        else:
+            st.markdown(f"- {rec}")
+
+    # إعداد البيانات لتصدير تقرير الـ HTML
     report_payload = {
         "name": name,
         "gender": gender,
         "birth_date": birth_date.strftime("%Y-%m-%d"),
+        "birth_time_label": str(birth_time_obj) if has_birth_time else "غير محددة",
+        "location": location_label,
+        "asc_label": asc_label,
         "planets_data": planets_data,
         "scores": scores,
         "reasons": reasons,
@@ -693,6 +974,7 @@ if submit:
         "diag_title": diag_title,
         "diag_summary": diag_summary,
         "diag_bullets": diag_bullets,
+        "recommendations": recommendations,
         "border_color": border_color,
         "bg_tint": bg_tint,
         "title_color": title_color
