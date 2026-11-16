@@ -154,6 +154,7 @@ ZODIAC_NAMES_AR = [
     "الأسد", "العذراء", "الميزان", "العقرب",
     "القوس", "الجدي", "الدلو", "الحوت"
 ]
+ZODIAC_SIGNS = ZODIAC_NAMES_AR
 
 PERSONAL_PLANETS = ["Sun", "Moon", "Mercury", "Venus", "Mars"]
 
@@ -251,7 +252,7 @@ EGYPTIAN_TERMS = {
     11: [(12, "Venus"), (16, "Jupiter"), (19, "Mercury"), (28, "Mars"), (30, "Saturn")]  # الحوت
 }
 
-# الوجوه / العشريات الكلدانية (Chaldea Faces / Decans)
+# الوجوه / العشريات الكلدانية (Chaldean Faces / Decans)
 CHALDEAN_ORDER = ["Mars", "Sun", "Venus", "Mercury", "Moon", "Saturn", "Jupiter"]
 
 # الكويكبات الرئيسية وكيرون
@@ -271,19 +272,107 @@ ASTEROIDS_AR = {
     "Vesta": "فيستا (الالتزام والبيت)"
 }
 
-# أهم النجوم الثابتة وتأثيرها التنجيمي: (الاسم في إيفيميريس، الاسم العربي، الطبيعة/الوزن)
-FIXED_STARS_CATALOG = [
-    ("Regulus", "قلب الأسد (Regulus)", +5.0, "نجم ملكي: مجد وقيادة ورفعة"),
-    ("Spica", "السماك الأعزل (Spica)", +5.5, "أعظم نجوم الحظ والمواهب والحماية"),
-    ("Aldebaran", "الدبران (Aldebaran)", +3.5, "نجم ملكي: نجاح وشجاعة بشرط النزاهة"),
-    ("Antares", "قلب العقرب (Antares)", +2.5, "نجم ملكي: قوة عاطفية وحسم"),
-    ("Fomalhaut", "فم الحوت (Fomalhaut)", +3.5, "نجم ملكي: مثالية وتألق روحي"),
-    ("Sirius", "الشعرى اليمانية (Sirius)", +4.5, "تألق وشهرة ونجاح استثنائي"),
-    ("Vega", "النسر الواقع (Vega)", +3.0, "جاذبية فنية والكاريزما وسحر"),
-    ("Arcturus", "السماك الرامح (Arcturus)", +3.5, "ريادة وعدالة وثروة"),
-    ("Algol", "رأس الغول (Algol)", -5.5, "نجم عنيف: حدة وتوتر شديد"),
-    ("Alcyone", "الثريا (Alcyone)", -2.5, "حساسية عاطفية وتقلبات")
-]
+# 5. النجوم الثابتة الـ 14 المعتمدة مع إحداثيات حقبة J2000 وطبيعتها الفلكية ودلالاتها المعتمدة وأوزانها التقييمية
+j2000_stars = {
+    "Regulus": {
+        "ar": "قلب الأسد",
+        "nature": "المريخ/المشتري",
+        "meaning": "الشرف العظيم، القيادة، تقلد المناصب الرفيعة، والنجاح المهني البارز.",
+        "lon_j2000": 149.83,
+        "weight": 5.0
+    },
+    "Spica": {
+        "ar": "السماك الأعزل",
+        "nature": "الزهرة/عطارد",
+        "meaning": "الحظ السعيد، الوفرة المالية، الحماية، والتفوق الشخصي والمادي.",
+        "lon_j2000": 203.83,
+        "weight": 5.5
+    },
+    "Aldebaran": {
+        "ar": "الدبران",
+        "nature": "المريخ",
+        "meaning": "الشجاعة، الطاقة العالية، النجاح في الأعمال والمبادرات الكبرى.",
+        "lon_j2000": 69.78,
+        "weight": 4.0
+    },
+    "Antares": {
+        "ar": "قلب العقرب",
+        "nature": "المريخ/المشتري",
+        "meaning": "طاقة مكثفة وجبارة، تحولات مفصلية كبرى، والنجاح بعد مواجهة تحديات تنافسية.",
+        "lon_j2000": 249.77,
+        "weight": 3.0
+    },
+    "Fomalhaut": {
+        "ar": "فم الحوت",
+        "nature": "عطارد/الزهرة/نبتون",
+        "meaning": "الكاريزما، التأثير الواسع، السمعة الطيبة، وتسهيل الموارد والفرص.",
+        "lon_j2000": 333.87,
+        "weight": 3.5
+    },
+    "Sirius": {
+        "ar": "الشعرى اليمانية",
+        "nature": "المشتري/المريخ",
+        "meaning": "الشهرة الواسعة، الطموح العالي جداً، والمجد والانجازات الاستثنائية.",
+        "lon_j2000": 104.08,
+        "weight": 4.5
+    },
+    "Algol": {
+        "ar": "رأس الغول",
+        "nature": "زحل/المشتري",
+        "meaning": "طاقة شديدة التحول، مواقف مفاجئة تتطلب الحكمة العالية.",
+        "lon_j2000": 56.17,
+        "weight": -5.5
+    },
+    "Betelgeuse": {
+        "ar": "منكب الجوزاء",
+        "nature": "المريخ/عطارد",
+        "meaning": "النجاح المدعوم بالذكاء القيادي والوصول إلى أهداف طموحة.",
+        "lon_j2000": 88.97,
+        "weight": 4.0
+    },
+    "Arcturus": {
+        "ar": "الرامح",
+        "nature": "المارس/المشتري",
+        "meaning": "الازدهار، الإلهام، وتجاوز العقبات بحكمة وقوة.",
+        "lon_j2000": 204.25,
+        "weight": 3.5
+    },
+    "Vega": {
+        "ar": "النسق الواقع",
+        "nature": "الزهرة/عطارد",
+        "meaning": "الفنون، الكاريزما الجذابة، والنجاح الاجتماعي والثروة.",
+        "lon_j2000": 285.32,
+        "weight": 3.5
+    },
+    "Capella": {
+        "ar": "العيزوق",
+        "nature": "المريخ/عطارد",
+        "meaning": "الفضول المعرفي، الاستقلالية، والنجاح في العلوم والقيادة.",
+        "lon_j2000": 81.85,
+        "weight": 3.0
+    },
+    "Procyon": {
+        "ar": "الشعرى الشامية",
+        "nature": "المريخ/عطارد",
+        "meaning": "النشاط، الحظ المفاجئ، والقدرة على تجاوز التحديات.",
+        "lon_j2000": 115.78,
+        "weight": 2.5
+    },
+    "Achernar": {
+        "ar": "آخر النهر",
+        "nature": "المشتري",
+        "meaning": "الحظ السعيد، النجاح المهني، وحماية السفر.",
+        "lon_j2000": 345.38,
+        "weight": 3.5
+    },
+    "Polaris": {
+        "ar": "النجم القُطبي",
+        "nature": "زحل/الزهرة",
+        "meaning": "التوجيه الثابت، القيادة الملتزمة، والوصول للهدف بوضوح.",
+        "lon_j2000": 88.52,
+        "weight": 2.5
+    }
+}
 
 # =============================================================================
 # 4. دوال الحسابات الفلكية والهندسية الدقيقة
@@ -293,23 +382,39 @@ def angular_diff(lon1: float, lon2: float) -> float:
     diff = abs(lon1 - lon2) % 360.0
     return min(diff, 360.0 - diff)
 
+def get_aspect(lon1: float, lon2: float, orb: float = 8.0) -> Optional[Dict[str, Any]]:
+    """
+    تحديد نوع الاتصال الفلكي ودلالته ومعامل الدقة (0.6 إلى 1.0).
+    """
+    dist = angular_diff(lon1, lon2)
+    aspects_rules = [
+        {"name": "اقتران (0°)", "angle": 0.0, "max_orb": min(orb, 8.0), "meaning": "اتصال امتزاج وتوحيد للطاقة وتأثير متبادل قوي", "type": "conjunction"},
+        {"name": "مقابلة (180°)", "angle": 180.0, "max_orb": min(orb, 8.0), "meaning": "اتصال مقابلة وتحدٍ واستقطاب يتطلب التوازن", "type": "opposition"},
+        {"name": "تثليث (120°)", "angle": 120.0, "max_orb": min(orb, 7.0), "meaning": "اتصال تثليث متناغم وتدفق سلس للمواهب والحظ", "type": "trine"},
+        {"name": "تربيع (90°)", "angle": 90.0, "max_orb": min(orb, 7.0), "meaning": "اتصال تربيع ضاغط واحتكاك وتوتر دافع للعمل", "type": "square"},
+        {"name": "تسديس (60°)", "angle": 60.0, "max_orb": min(orb, 5.0), "meaning": "اتصال تسديس داعم وفرص تعاون إيجابية", "type": "sextile"}
+    ]
+    for asp in aspects_rules:
+        curr_orb = abs(dist - asp["angle"])
+        if curr_orb <= asp["max_orb"]:
+            precision_factor = 1.0 - (curr_orb / asp["max_orb"]) * 0.4
+            return {
+                "name": asp["name"],
+                "angle": asp["angle"],
+                "orb": curr_orb,
+                "precision": precision_factor,
+                "meaning": asp["meaning"],
+                "type": asp["type"]
+            }
+    return None
+
 def get_aspect_details(lon1: float, lon2: float) -> Optional[Tuple[str, float, float]]:
     """
     تحديد نوع الاتصال الفلكي والاورب المتبقي ومعامل الدقة (0.6 إلى 1.0).
     """
-    dist = angular_diff(lon1, lon2)
-    aspects_rules = [
-        ("اقتران (0°)", 0.0, 8.0),
-        ("مقابلة (180°)", 180.0, 8.0),
-        ("تثليث (120°)", 120.0, 7.0),
-        ("تربيع (90°)", 90.0, 7.0),
-        ("تسديس (60°)", 60.0, 5.0),
-    ]
-    for asp_name, target_angle, max_orb in aspects_rules:
-        orb = abs(dist - target_angle)
-        if orb <= max_orb:
-            precision_factor = 1.0 - (orb / max_orb) * 0.4
-            return asp_name, orb, precision_factor
+    res = get_aspect(lon1, lon2, orb=8.0)
+    if res:
+        return res["name"], res["orb"], res["precision"]
     return None
 
 def get_term_ruler(sign_idx: int, deg_in_sign: float) -> str:
@@ -325,25 +430,38 @@ def get_face_ruler(sign_idx: int, deg_in_sign: float) -> str:
     total_decan = sign_idx * 3 + decan_idx
     return CHALDEAN_ORDER[total_decan % 7]
 
-def compute_fixed_stars(jd: float) -> List[Dict[str, Any]]:
-    """حساب المواقع الدقيقة للنجوم الثابتة في لحظة الميلاد مع تصحيح مبادرة الاعتدالين."""
-    stars_positions = []
-    for star_key, star_ar, weight, desc in FIXED_STARS_CATALOG:
-        try:
-            res, _ = swe.fixstar2_ut(star_key, jd)
-            stars_positions.append({
-                "key": star_key,
-                "name_ar": star_ar,
-                "lon": res[0],
-                "weight": weight,
-                "desc": desc
-            })
-        except Exception:
-            continue
-    return stars_positions
+def compute_fixed_stars(jd: float, ascendant_sign_idx: int = 0) -> List[Dict[str, Any]]:
+    """
+    حساب المواقع الدقيقة للنجوم الثابتة في لحظة الميلاد مع تصحيح مبادرة الاعتدالين
+    وتحديد البرج والدرجة والبيت الفلكي بدقة تامة.
+    """
+    years_since_j2000 = (jd - 2451545.0) / 365.25
+    precession_correction = years_since_j2000 * (50.27 / 3600.0)
+
+    fixed_stars_data = []
+    for fs_name, fs_info in j2000_stars.items():
+        s_lon = (fs_info["lon_j2000"] + precession_correction) % 360.0
+        s_idx = int(s_lon // 30)
+        s_deg = s_lon % 30.0
+        s_house = ((s_idx - ascendant_sign_idx) % 12) + 1
+
+        fixed_stars_data.append({
+            "name": fs_name,
+            "ar": fs_info["ar"],
+            "name_ar": fs_info["ar"],
+            "lon": s_lon,
+            "sign": ZODIAC_SIGNS[s_idx],
+            "sign_idx": s_idx,
+            "degree": s_deg,
+            "house": s_house,
+            "nature": fs_info["nature"],
+            "meaning": fs_info["meaning"],
+            "weight": fs_info.get("weight", 3.0)
+        })
+    return fixed_stars_data
 
 # =============================================================================
-# 5. محرك تقييم قوى الكواكب الشخصية (مقياس 100 نقطة شامل الكرامات والاتصالات)
+# 5. محرك تقييم قوى الكواكب الشخصية (مقياس 100 نقطة شامل الكرامات والاتصالات النجمية)
 # =============================================================================
 def evaluate_planet_100_scale(
     planet_name: str,
@@ -358,7 +476,7 @@ def evaluate_planet_100_scale(
     - الكرامات الذاتية الخمس (البيت، الشرف، المثلثة، الحد، الوجه) والانتكاسات (الوبال، الهبوط، الغربة)
     - التبادل بالربوبية (Mutual Reception)
     - الكرامات العرضية: البيوت، السرعة، التراجع، الموقف من الشمس (Cazimi / Combust / Under Beams)، الحيّز
-    - اتصالات الكواكب العشرة، الكويكبات الخمسة، والنجوم الثابتة
+    - اتصالات الكواكب العشرة، الكويكبات الخمسة، واتصالات النجوم الثابتة الـ 14 مع الكواكب الشخصية الخمسة
     """
     p_data = all_planets[planet_name]
     p_lon = p_data["lon"]
@@ -549,7 +667,7 @@ def evaluate_planet_100_scale(
             reasons.append(f"محترق بالشمس ({sun_dist:.1f}°) [{combust_pen}]")
         elif sun_dist <= 17.0:
             score -= 5.0
-            breakdown["accidental"] -= 5.0
+            breakdown["accidental"] += 5.0
             reasons.append(f"تحت شعاع الشمس ({sun_dist:.1f}°) [-5.0]")
         else:
             score += 2.0
@@ -564,6 +682,7 @@ def evaluate_planet_100_scale(
         breakdown["accidental"] += 3.0
         reasons.append("موافق للحيّز (نهاري/ليلي) [+3.0]")
 
+    # -------------------------------------------------------------------------
     # هـ) اتصالات الكواكب العشرة (Planets Aspects)
     # -------------------------------------------------------------------------
     benefics = ["Jupiter", "Venus"]
@@ -645,23 +764,37 @@ def evaluate_planet_100_scale(
             breakdown["asteroids_stars"] += delta
 
     # -------------------------------------------------------------------------
-    # ز) اقتران ومقابلة النجوم الثابتة الكبرى (Fixed Stars - Orb 1.5°)
+    # ز) اتصالات النجوم الثابتة الـ 14 مع الكواكب الشخصية الخمسة (Fixed Stars Aspects)
     # -------------------------------------------------------------------------
     for star in fixed_stars:
-        dist = angular_diff(p_lon, star["lon"])
-        if dist <= 1.5:
-            w = star["weight"]
-            score += w
-            breakdown["asteroids_stars"] += w
-            sign_str = "+" if w > 0 else ""
-            reasons.append(f"اقتران بالنجم الثابت {star['name_ar']} ({star['desc']}) [{sign_str}{w}]")
-            structured_aspects.append({"target": f"النجم الثابت {star['name_ar']}", "type": "اقتران (0°)", "orb": f"{dist:.1f}°", "score": f"{sign_str}{w}"})
-        elif abs(dist - 180.0) <= 1.2 and star["weight"] < 0:
-            w = round(star["weight"] * 0.6, 1)
-            score += w
-            breakdown["asteroids_stars"] += w
-            reasons.append(f"مقابلة النجم الثابت {star['name_ar']} [{w}]")
-            structured_aspects.append({"target": f"النجم الثابت {star['name_ar']}", "type": "مقابلة (180°)", "orb": f"{abs(dist-180):.1f}°", "score": f"{w}"})
+        asp = get_aspect(star["lon"], p_lon, orb=8.0)
+        if asp:
+            asp_name = asp["name"]
+            orb_val = asp["orb"]
+            prec = asp["precision"]
+            base_w = star.get("weight", 3.0)
+            
+            # احتساب الأثر الفلكي في مقياس القوة بحسب نوع الاتصال وطبيعة النجم
+            if "اقتران" in asp_name:
+                delta = round(base_w * prec, 1)
+            elif "تثليث" in asp_name or "تسديس" in asp_name:
+                delta = round((base_w * 0.5) * prec, 1) if base_w > 0 else round((base_w * 0.2) * prec, 1)
+            elif "تربيع" in asp_name or "مقابلة" in asp_name:
+                delta = round((base_w * 0.6) * prec, 1) if base_w < 0 else round((base_w * 0.25) * prec, 1)
+            else:
+                delta = 0.0
+
+            if delta != 0.0:
+                score += delta
+                breakdown["asteroids_stars"] += delta
+                sign_str = "+" if delta > 0 else ""
+                reasons.append(f"{asp_name} مع النجم الثابت {star['ar']} [{star['nature']}] (أورب {orb_val:.1f}°) [{sign_str}{delta}]")
+                structured_aspects.append({
+                    "target": f"النجم {star['ar']} ({star['nature']})",
+                    "type": asp_name,
+                    "orb": f"{orb_val:.1f}°",
+                    "score": f"{sign_str}{delta}"
+                })
 
     # السقف الأعلى 100 نقطة، ويسمح بالقيم تحت 50 أو الصفر أو السالب لإظهار الضعف بدقة
     final_score = round(min(100.0, score), 1)
@@ -801,7 +934,7 @@ def generate_html_report(data: Dict[str, Any]) -> str:
         </tr>
         """
 
-    # جدول تفاصيل الاتصالات الفلكية الشاملة (مع الكواكب، الكويكبات، والنجوم الثابتة)
+    # جدول تفاصيل الاتصالات الفلكية الشاملة للكواكب الشخصية
     aspects_table_rows = ""
     for p_name in PERSONAL_PLANETS:
         asp_list = data.get("structured_aspects", {}).get(p_name, [])
@@ -823,6 +956,44 @@ def generate_html_report(data: Dict[str, Any]) -> str:
                 <td colspan="4" style="color:#64748b; font-style:italic;">لا توجد اتصالات رئيسية مؤثرة مرصودة ضمن الأورب المعتمد</td>
             </tr>
             """
+
+    # جدول اتصالات النجوم الثابتة الـ 14 بالكواكب الشخصية الخمسة
+    stellar_aspects_rows = ""
+    stellar_aspects_list = data.get("stellar_aspects", [])
+    if stellar_aspects_list:
+        for st_asp in stellar_aspects_list:
+            stellar_aspects_rows += f"""
+            <tr>
+                <td style="font-weight:800; color:#1e3a8a;">{st_asp['target']} (البيت {st_asp['planet_house']})</td>
+                <td style="font-weight:700; color:#0f172a;">{st_asp['star_ar']} ({st_asp['star_name']})</td>
+                <td style="text-align:center;">البيت {st_asp['star_house']}</td>
+                <td style="font-size:12px; color:#475569;">{st_asp['nature']}</td>
+                <td style="font-weight:700; color:#d97706;">{st_asp['aspect']}</td>
+                <td style="text-align:center;">{st_asp['orb']}</td>
+                <td style="font-size:11.5px; line-height:1.6; color:#1e293b;">{st_asp['meaning']}</td>
+            </tr>
+            """
+    else:
+        stellar_aspects_rows = """
+        <tr>
+            <td colspan="7" style="text-align:center; color:#64748b; font-style:italic; padding:15px;">
+                لا توجد اتصالات مرصودة بين النجوم الثابتة والكواكب الشخصية الخمسة ضمن الأورب المعتمد (8 درجات).
+            </td>
+        </tr>
+        """
+
+    # جدول مواقع النجوم الثابتة الـ 14 في الخريطة
+    fixed_stars_table_rows = ""
+    for fs in data.get("fixed_stars", []):
+        fixed_stars_table_rows += f"""
+        <tr>
+            <td style="font-weight:700;">{fs['ar']} ({fs['name']})</td>
+            <td>{fs['sign']} ({fs['degree']:.2f}°)</td>
+            <td style="text-align:center;">البيت {fs['house']}</td>
+            <td style="font-size:12px; color:#475569;">{fs['nature']}</td>
+            <td style="font-size:11.5px; color:#334155;">{fs['meaning']}</td>
+        </tr>
+        """
 
     outer_rows = ""
     for p_name in ["Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]:
@@ -865,7 +1036,7 @@ def generate_html_report(data: Dict[str, Any]) -> str:
             font-size: 13.5px;
         }}
         .container {{
-            max-width: 1100px;
+            max-width: 1150px;
             margin: 0 auto;
             background: #ffffff;
             padding: 35px;
@@ -1019,7 +1190,7 @@ def generate_html_report(data: Dict[str, Any]) -> str:
 <div class="container">
     <div class="header">
         <h1>التقرير الفلكي الشامل لقوى الكواكب الشخصية وصلاحية الزواج</h1>
-        <p>محرك التقييم المئوي (100 نقطة) — الكرامات الخمس، التبادل، السرعة، الشمس، الكواكب العشرة، الكويكبات</p>
+        <p>محرك التقييم المئوي (100 نقطة) — الكرامات الخمس، التبادل، السرعة، الشمس، الكواكب العشرة، الكويكبات، واتصالات النجوم الثابتة الـ 14</p>
     </div>
 
     <div class="section-title">البيانات الفلكية والجغرافية للحدث</div>
@@ -1051,12 +1222,30 @@ def generate_html_report(data: Dict[str, Any]) -> str:
         </tbody>
     </table>
 
-    <div class="section-title">جدول تفاصيل الاتصالات الفلكية الشاملة (مع الكواكب و الكويكبات)</div>
+    <div class="section-title">⭐ جدول اتصالات النجوم الثابتة الـ 14 بالكواكب الشخصية الخمسة والدلالات التنجيمية</div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width:16%;">الكوكب الشخصي والبيت</th>
+                <th style="width:16%;">النجم الثابت</th>
+                <th style="width:10%; text-align:center;">بيت النجم</th>
+                <th style="width:14%;">طبيعة النجم</th>
+                <th style="width:14%;">نوع الاتصال</th>
+                <th style="width:10%; text-align:center;">الأورب</th>
+                <th style="width:20%;">الدلالة الفلكية والأثر</th>
+            </tr>
+        </thead>
+        <tbody>
+            {stellar_aspects_rows}
+        </tbody>
+    </table>
+
+    <div class="section-title">جدول تفاصيل الاتصالات الفلكية الشاملة (مع الكواكب و الكويكبات والنجوم)</div>
     <table>
         <thead>
             <tr>
                 <th style="width:20%;">الكوكب الشخصي</th>
-                <th style="width:25%;">الجهة المتصلة (كوكب/كويكب)</th>
+                <th style="width:25%;">الجهة المتصلة (كوكب/كويكب/نجم)</th>
                 <th style="width:25%;">نوع الاتصال الهندسي</th>
                 <th style="width:15%; text-align:center;">الفارق (الأورب)</th>
                 <th style="width:15%; text-align:center;">الأثر النقدي</th>
@@ -1064,6 +1253,22 @@ def generate_html_report(data: Dict[str, Any]) -> str:
         </thead>
         <tbody>
             {aspects_table_rows}
+        </tbody>
+    </table>
+
+    <div class="section-title">🌌 مواقع النجوم الثابتة الـ 14 في الخريطة الفلكية (J2000 مصححة لمبادرة الاعتدالين)</div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width:20%;">النجم الثابت</th>
+                <th style="width:18%;">البرج والدرجة</th>
+                <th style="width:10%; text-align:center;">البيت الفلكي</th>
+                <th style="width:16%;">الطبيعة الفلكية</th>
+                <th style="width:36%;">الدلالة التنجيمية الأصلية</th>
+            </tr>
+        </thead>
+        <tbody>
+            {fixed_stars_table_rows}
         </tbody>
     </table>
 
@@ -1125,7 +1330,7 @@ def generate_html_report(data: Dict[str, Any]) -> str:
 st.markdown("""
 <div class="main-header">
     <h1>🔭 المحرك الفلكي المتقدم لتقييم قوى الكواكب وصلاحية الزواج</h1>
-    <p>نظام تقييم شمولي من 100 نقطة يدمج الكرامات الخمس، التبادل، السرعة، الشمس، الكواكب العشرة، الكويكبات</p>
+    <p>نظام تقييم شمولي من 100 نقطة يدمج الكرامات الخمس، التبادل، السرعة، الشمس، الكواكب العشرة، الكويكبات، واتصالات النجوم الثابتة الـ 14</p>
     <p>تطوير الفلكي الدكتور استرو رادار</p>
 </div>
 """, unsafe_allow_html=True)
@@ -1244,7 +1449,7 @@ if submit:
     is_day_chart = (sun_house in [7, 8, 9, 10, 11, 12]) if has_birth_time else True
     sect_label = "خريطة نهارية (Diurnal)" if is_day_chart else "خريطة ليلية (Nocturnal)"
 
-    # 4. حساب مواقع الكويكبات والنجوم الثابتة
+    # 4. حساب مواقع الكويكبات والنجوم الثابتة الـ 14 وتصحيح المبادرة
     asteroids_data = {}
     for ast_name, ast_id in ASTEROIDS_IDS.items():
         try:
@@ -1253,7 +1458,34 @@ if submit:
         except Exception:
             continue
 
-    fixed_stars_data = compute_fixed_stars(jd)
+    fixed_stars_data = compute_fixed_stars(jd, house_start_sign)
+
+    # حساب اتصالات النجوم الثابتة الـ 14 بالكواكب الشخصية الخمسة حصراً (الشمس، القمر، عطارد، الزهرة، المريخ)
+    target_five_planets = ["الشمس", "القمر", "عطارد", "الزهرة", "المريخ"]
+    stellar_aspects = []
+
+    for fs in fixed_stars_data:
+        for p_name in PERSONAL_PLANETS:
+            p_info = all_planets_data[p_name]
+            p_ar = ALL_PLANETS_AR[p_name]
+            if p_ar in target_five_planets:
+                asp = get_aspect(fs["lon"], p_info["lon"], orb=8.0)
+                if asp:
+                    stellar_aspects.append({
+                        "star_ar": fs["ar"],
+                        "star_name": fs["name"],
+                        "star_lon": fs["lon"],
+                        "star_sign": fs["sign"],
+                        "star_deg": fs["degree"],
+                        "star_house": fs["house"],
+                        "target": p_ar,
+                        "target_type": "كوكب شخصي",
+                        "planet_house": p_info["whole_sign_house"],
+                        "aspect": asp["name"],
+                        "orb": f"{asp['orb']:.2f}°",
+                        "nature": fs["nature"],
+                        "meaning": f"{asp['meaning']} - الدلالة: {fs['meaning']}"
+                    })
 
     # 5. تقييم الكواكب الشخصية الخمسة على مقياس 100 نقطة
     scores: Dict[str, float] = {}
@@ -1303,11 +1535,27 @@ if submit:
             f"- **اليوم اليولياني (JD):** `{jd:.5f}`\n"
             f"- **مرجعية الطالع:** {asc_label} (نظام كل برج بيت)\n"
             f"- **طبيعة الخريطة:** {sect_label}\n"
+            f"- **النجوم الثابتة المرصودة:** 14 نجماً مصححاً لـ J2000\n"
             "- **نطاقات التقييم المئوي (من 100):**\n"
             "  - 🟢 **أكثر من 60 نقطة:** قوي\n"
             "  - 🟡 **من 50 إلى 60 نقطة:** متوسط القوى\n"
             "  - 🔴 **أقل من 50 (أو صفر أو سالب):** ضعيف"
         )
+
+    # عرض اتصالات النجوم الثابتة الـ 14 بالكواكب الشخصية في واجهة Streamlit
+    st.markdown("---")
+    st.markdown("### ⭐ اتصالات النجوم الثابتة الـ 14 بالكواكب الشخصية الخمسة:")
+    if stellar_aspects:
+        for st_asp in stellar_aspects:
+            st.markdown(f"""
+            <div class="planet-detail-box" style="border-right: 4px solid #f59e0b;">
+                <strong>{st_asp['target']}</strong> (البيت {st_asp['planet_house']}) في <strong>{st_asp['aspect']}</strong> مع النجم الثابت 
+                <strong>{st_asp['star_ar']} ({st_asp['star_name']})</strong> — بيت النجم: {st_asp['star_house']} (فارق {st_asp['orb']})<br>
+                <span style="font-size:12px; color:#475569;">الطبيعة: <em>{st_asp['nature']}</em> | {st_asp['meaning']}</span>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        st.info("لا توجد اتصالات مباشرة بين النجوم الثابتة الـ 14 والكواكب الشخصية الخمسة ضمن أورب 8 درجات.")
 
     sun_sc = scores["Sun"]
     moon_sc = scores["Moon"]
@@ -1502,6 +1750,8 @@ if submit:
         "scores": scores,
         "reasons": reasons,
         "structured_aspects": structured_aspects_all,
+        "fixed_stars": fixed_stars_data,
+        "stellar_aspects": stellar_aspects,
         "fem_power": fem_power,
         "masc_power": masc_power,
         "mercury_score": mercury_sc,
