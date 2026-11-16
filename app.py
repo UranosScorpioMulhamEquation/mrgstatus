@@ -1,5 +1,4 @@
 import datetime
-import os
 import math
 from dataclasses import dataclass
 from typing import Dict, List, Tuple, Any, Optional
@@ -13,14 +12,7 @@ from timezonefinder import TimezoneFinder
 # =============================================================================
 # 1. إعدادات المحرك الفلكي (Swiss Ephemeris) وتنسيق واجهة Streamlit (RTL)
 # =============================================================================
-# ==========================================
-# 0. تهيئة مسار ملفات الـ Ephemeris
-# ==========================================
-EPHE_PATH = "./ephe"
-if not os.path.exists(EPHE_PATH):
-    os.makedirs(EPHE_PATH)
-
-swe.set_ephe_path(EPHE_PATH)
+swe.set_ephe_path('')  # تفعيل تقويم Moshier المدمج عالي الدقة
 
 st.set_page_config(
     page_title="المحرك الفلكي المتقدم لتقييم قوى الكواكب وصلاحية الزواج",
@@ -1075,8 +1067,6 @@ st.markdown("""
 <div class="main-header">
     <h1>🔭 المحرك الفلكي المتقدم لتقييم قوى الكواكب وصلاحية الزواج</h1>
     <p>نظام تقييم شمولي من 100 نقطة يدمج الكرامات الخمس، التبادل، السرعة، الشمس، الكواكب العشرة، الكويكبات والنجوم الثابتة</p>
-    <p>تطوير الفلكي الدكتور استرو رادار</p>
-
 </div>
 """, unsafe_allow_html=True)
 
