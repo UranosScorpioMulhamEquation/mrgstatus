@@ -279,7 +279,7 @@ FIXED_STARS_CATALOG = [
     ("Antares", "قلب العقرب (Antares)", +2.5, "نجم ملكي: قوة عاطفية وحسم"),
     ("Fomalhaut", "فم الحوت (Fomalhaut)", +3.5, "نجم ملكي: مثالية وتألق روحي"),
     ("Sirius", "الشعرى اليمانية (Sirius)", +4.5, "تألق وشهرة ونجاح استثنائي"),
-    ("Vega", "النسر الواقع (Vega)", +3.0, "جاذبية فنية وكاريزما وسحر"),
+    ("Vega", "النسر الواقع (Vega)", +3.0, "جاذبية فنية والكاريزما وسحر"),
     ("Arcturus", "السماك الرامح (Arcturus)", +3.5, "ريادة وعدالة وثروة"),
     ("Algol", "رأس الغول (Algol)", -5.5, "نجم عنيف: حدة وتوتر شديد"),
     ("Alcyone", "الثريا (Alcyone)", -2.5, "حساسية عاطفية وتقلبات")
@@ -352,7 +352,7 @@ def evaluate_planet_100_scale(
     fixed_stars: List[Dict[str, Any]],
     is_day_chart: bool,
     has_birth_time: bool
-) -> Tuple[float, List[str], Dict[str, float]]:
+) -> Tuple[float, List[str], Dict[str, float], List[Dict[str, str]]]:
     """
     حساب قوة الكوكب الشخصي من أصل 100 نقطة بدمج:
     - الكرامات الذاتية الخمس (البيت، الشرف، المثلثة، الحد، الوجه) والانتكاسات (الوبال، الهبوط، الغربة)
@@ -376,6 +376,7 @@ def evaluate_planet_100_scale(
         "asteroids_stars": 0.0
     }
     reasons: List[str] = ["نقطة الأساس: 40.0"]
+    structured_aspects: List[Dict[str, str]] = []
     has_any_essential_dignity = False
 
     # -------------------------------------------------------------------------
@@ -563,7 +564,7 @@ def evaluate_planet_100_scale(
         breakdown["accidental"] += 3.0
         reasons.append("موافق للحيّز (نهاري/ليلي) [+3.0]")
 
-# هـ) اتصالات الكواكب العشرة (Planets Aspects)
+    # هـ) اتصالات الكواكب العشرة (Planets Aspects)
     # -------------------------------------------------------------------------
     benefics = ["Jupiter", "Venus"]
     malefics = ["Saturn", "Mars"]
@@ -679,6 +680,7 @@ def get_strength_classification(score: float) -> Tuple[str, str, str]:
         return "متوسط القوى", "🟡", "moderate"
     else:
         return "ضعيف", "🔴", "weak"
+
 # =============================================================================
 # 6. دالة تقديم الحلول والعلاجات الفلكية المتقدمة وفق أحدث مراجع التنجيم الغربي
 # =============================================================================
@@ -768,7 +770,6 @@ def get_advanced_recommendations(
 
     return recommendations
 
-# =============================================================================
 # =============================================================================
 # 7. مولد تقرير HTML الاحترافي للطباعة (Print-Ready Executive Report)
 # =============================================================================
@@ -1117,6 +1118,7 @@ def generate_html_report(data: Dict[str, Any]) -> str:
 </html>
 """
     return html
+
 # =============================================================================
 # 8. واجهة المستخدم التفاعلية في Streamlit
 # =============================================================================
@@ -1125,7 +1127,6 @@ st.markdown("""
     <h1>🔭 المحرك الفلكي المتقدم لتقييم قوى الكواكب وصلاحية الزواج</h1>
     <p>نظام تقييم شمولي من 100 نقطة يدمج الكرامات الخمس، التبادل، السرعة، الشمس، الكواكب العشرة، الكويكبات والنجوم الثابتة</p>
     <p>تطوير الفلكي الدكتور استرو رادار</p>
-
 </div>
 """, unsafe_allow_html=True)
 
@@ -1258,9 +1259,10 @@ if submit:
     scores: Dict[str, float] = {}
     reasons: Dict[str, List[str]] = {}
     breakdowns: Dict[str, Dict[str, float]] = {}
+    structured_aspects_all: Dict[str, List[Dict[str, str]]] = {}
 
     for p_name in PERSONAL_PLANETS:
-        sc, r_list, b_dict = evaluate_planet_100_scale(
+        sc, r_list, b_dict, struct_asp = evaluate_planet_100_scale(
             planet_name=p_name,
             all_planets=all_planets_data,
             asteroids=asteroids_data,
@@ -1271,6 +1273,7 @@ if submit:
         scores[p_name] = sc
         reasons[p_name] = r_list
         breakdowns[p_name] = b_dict
+        structured_aspects_all[p_name] = struct_asp
 
     # 6. عرض النتائج في واجهة Streamlit
     st.markdown("---")
@@ -1498,6 +1501,7 @@ if submit:
         "all_planets": all_planets_data,
         "scores": scores,
         "reasons": reasons,
+        "structured_aspects": structured_aspects_all,
         "fem_power": fem_power,
         "masc_power": masc_power,
         "mercury_score": mercury_sc,
