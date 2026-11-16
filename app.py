@@ -9,6 +9,47 @@ import pytz
 import streamlit as st
 import swisseph as swe
 from timezonefinder import TimezoneFinder
+import uuid
+# ==================== إعدادات الأمان ونظام الترخيص ====================
+KEY_FILE = "license.key"
+
+def get_machine_id() -> str:
+    return hex(uuid.getnode())
+
+def generate_password(mid: str) -> str:
+    digits = ''.join(filter(str.isdigit, mid))
+    if not digits: 
+        try:
+            digits = str(int(mid, 16))
+        except:
+            return "Error"
+    num = int(digits)
+    result = round(abs(num / 2 * 3.14))
+    return str(result)[:6]
+
+if 'authenticated' not in st.session_state:
+    st.session_state['authenticated'] = os.path.exists(KEY_FILE)
+
+if not st.session_state['authenticated']:
+    st.set_page_config(page_title="نظام الأمان والتحقق", layout="centered")
+    st.title("🛡️ تفعيل نظام الأمان الفلكي")
+    st.warning("الرجاء إرسال معرف الجهاز (Machine ID) للمطور للتفعيل: mulham81ahmed@gmail.com")
+
+    mid = get_machine_id()
+    st.info(f"Machine ID: {mid}")
+    pwd = st.text_input("أدخل مفتاح التفعيل:", type="password")
+    
+    if st.button("تفعيل النظام"):
+        if pwd == generate_password(mid):
+            with open(KEY_FILE, "w") as f: 
+                f.write(pwd)
+            st.session_state['authenticated'] = True
+            st.rerun()
+        else:
+            st.error("مفتاح التفعيل غير صحيح.")
+            
+    st.stop()
+
 
 # =============================================================================
 # 1. إعدادات المحرك الفلكي (Swiss Ephemeris) وتنسيق واجهة Streamlit (RTL)
