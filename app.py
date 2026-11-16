@@ -258,7 +258,6 @@ ASTEROIDS_AR = {
     "Vesta": "فيستا (الالتزام والبيت)"
 }
 
-# كتالوج النجوم الثابتة الفعلي المتوافق مع Swiss Ephemeris
 FIXED_STARS_CATALOG = [
     ("Regulus", "قلب الأسد (Regulus)", +5.0, "نجم ملكي: مجد وقيادة ورفعة"),
     ("Spica", "السماك الأعزل (Spica)", +5.5, "أعظم نجوم الحظ والمواهب والحماية"),
@@ -266,7 +265,7 @@ FIXED_STARS_CATALOG = [
     ("Antares", "قلب العقرب (Antares)", +2.5, "نجم ملكي: قوة عاطفية وحسم"),
     ("Fomalhaut", "فم الحوت (Fomalhaut)", +3.5, "نجم ملكي: مثالية وتألق روحي"),
     ("Sirius", "الشعرى اليمانية (Sirius)", +4.5, "تألق وشهرة ونجاح استثنائي"),
-    ("Vega", "النسر الواقع (Vega)", +3.0, "جاذبية فنية وكاريزما وسحر"),
+    ("Vega", "النسر الواقع (Vega)", +3.0, "جاذبية فنية والكاريزما والسحر"),
     ("Arcturus", "السماك الرامح (Arcturus)", +3.5, "ريادة وعدالة وثروة"),
     ("Algol", "رأس الغول (Algol)", -5.5, "نجم عنيف: حدة وتوتر شديد"),
     ("Alcyone", "الثريا (Alcyone)", -2.5, "حساسية عاطفية وتقلبات")
@@ -307,7 +306,6 @@ def get_face_ruler(sign_idx: int, deg_in_sign: float) -> str:
     return CHALDEAN_ORDER[total_decan % 7]
 
 def compute_fixed_stars(jd: float) -> List[Dict[str, Any]]:
-    """حساب المواقع الحقيقية والدقيقة للنجوم الثابتة عبر محرك سويس إيفيميريس."""
     stars_positions = []
     for star_key, star_ar, weight, desc in FIXED_STARS_CATALOG:
         try:
@@ -333,7 +331,7 @@ def evaluate_planet_100_scale(
     fixed_stars: List[Dict[str, Any]],
     is_day_chart: bool,
     has_birth_time: bool
-) -> Tuple[float, List[str], Dict[str, float]]:
+) -> Tuple[float, List[str], Dict[str, float], List[Dict[str, Any]]]:
     p_data = all_planets[planet_name]
     p_lon = p_data["lon"]
     p_speed = p_data["speed"]
@@ -341,7 +339,7 @@ def evaluate_planet_100_scale(
     deg_in_sign = p_data["deg_in_sign"]
     house_num = p_data["whole_sign_house"]
 
-    score = 40.0  # القيمة الأساسية المحايدة (Baseline)
+    score = 40.0
     breakdown = {
         "essential": 0.0,
         "accidental": 0.0,
@@ -349,6 +347,7 @@ def evaluate_planet_100_scale(
         "asteroids_stars": 0.0
     }
     reasons: List[str] = ["نقطة الأساس المحايدة: 40.0"]
+    structured_aspects: List[Dict[str, Any]] = []
     has_any_essential_dignity = False
 
     # أ) الكرامات الذاتية
@@ -467,7 +466,7 @@ def evaluate_planet_100_scale(
         elif abs(p_speed) < 0.08:
             score -= 4.0
             breakdown["accidental"] -= 4.0
-            reasons.append("متوقف (Stationary) [-4.0]")
+            reasons.append("متوقف [-4.0]")
         else:
             if p_speed > avg_spd * 1.15:
                 score += 4.0
@@ -488,7 +487,7 @@ def evaluate_planet_100_scale(
         if sun_dist <= 0.2833:
             score += 12.0
             breakdown["accidental"] += 12.0
-            reasons.append("في صميم الشمس (Cazimi) [+12.0]")
+            reasons.append("في صميم الشمس [+12.0]")
         elif sun_dist <= 8.5:
             combust_pen = -5.0 if (SIGN_RULERS.get(sign_idx) == planet_name or (exalt_info and exalt_info[0] == sign_idx)) else -10.0
             score += combust_pen
@@ -548,7 +547,14 @@ def evaluate_planet_100_scale(
             score += delta
             breakdown["planets_aspects"] += delta
             sign_str = "+" if delta > 0 else ""
-            reasons.append(f"{asp_name} مع {other_ar} (أورب {orb:.1f}°) [{sign_str}{delta}]")
+            msg = f"{asp_name} مع {other_ar} (أورب {orb:.1f}°) [{sign_str}{delta}]"
+            reasons.append(msg)
+            structured_aspects.append({
+                "target": other_ar,
+                "type": asp_name,
+                "orb": f"{orb:.1f}°",
+                "score": f"{sign_str}{delta}"
+            })
 
     # و) اتصالات الكويكبات
     for ast_name, ast_info in asteroids.items():
@@ -559,21 +565,25 @@ def evaluate_planet_100_scale(
             if ast_name in ["Juno", "Ceres", "Vesta", "Pallas"]:
                 delta = 2.5
                 reasons.append(f"اقتران مع كويكب {ast_ar} [+2.5]")
+                structured_aspects.append({"target": f"كويكب {ast_ar}", "type": "اقتران (0°)", "orb": f"{dist:.1f}°", "score": "+2.5"})
             elif ast_name == "Chiron":
                 delta = -2.5
                 reasons.append(f"اقتران مع كويكب {ast_ar} [-2.5]")
+                structured_aspects.append({"target": f"كويكب {ast_ar}", "type": "اقتران (0°)", "orb": f"{dist:.1f}°", "score": "-2.5"})
         elif abs(dist - 120.0) <= 2.5 or abs(dist - 60.0) <= 2.5:
             delta = 1.5
             reasons.append(f"اتصال سعيد مع {ast_ar} [+1.5]")
+            structured_aspects.append({"target": f"كويكب {ast_ar}", "type": "اتصال متناغم", "orb": f"{abs(dist-120):.1f}°", "score": "+1.5"})
         elif abs(dist - 90.0) <= 2.5 or abs(dist - 180.0) <= 2.5:
             delta = -1.5
             reasons.append(f"اتصال ضاغط مع {ast_ar} [-1.5]")
+            structured_aspects.append({"target": f"كويكب {ast_ar}", "type": "اتصال ضاغط", "orb": f"{abs(dist-90):.1f}°", "score": "-1.5"})
 
         if delta != 0.0:
             score += delta
             breakdown["asteroids_stars"] += delta
 
-    # ز) اقترانات ومقابلات النجوم الثابتة الحقيقية
+    # ز) النجوم الثابتة
     for star in fixed_stars:
         dist = angular_diff(p_lon, star["lon"])
         if dist <= 1.5:
@@ -582,22 +592,18 @@ def evaluate_planet_100_scale(
             breakdown["asteroids_stars"] += w
             sign_str = "+" if w > 0 else ""
             reasons.append(f"اقتران بالنجم الثابت {star['name_ar']} ({star['desc']}) [{sign_str}{w}]")
+            structured_aspects.append({"target": f"النجم الثابت {star['name_ar']}", "type": "اقتران (0°)", "orb": f"{dist:.1f}°", "score": f"{sign_str}{w}"})
         elif abs(dist - 180.0) <= 1.2 and star["weight"] < 0:
             w = round(star["weight"] * 0.6, 1)
             score += w
             breakdown["asteroids_stars"] += w
             reasons.append(f"مقابلة النجم الثابت {star['name_ar']} [{w}]")
+            structured_aspects.append({"target": f"النجم الثابت {star['name_ar']}", "type": "مقابلة (180°)", "orb": f"{abs(dist-180):.1f}°", "score": f"{w}"})
 
     final_score = round(min(100.0, score), 1)
-    return final_score, reasons, breakdown
+    return final_score, reasons, breakdown, structured_aspects
 
 def get_strength_classification(score: float) -> Tuple[str, str, str]:
-    """
-    تصنيف قوة الكوكب الدقيق وفق مقياس 100 نقطة:
-    - أكثر من 60 (> 60): قوي
-    - من 50 إلى 60 (50 <= score <= 60): متوسط القوى
-    - أقل من 50 (< 50): ضعيف
-    """
     if score > 60.0:
         return "قوي", "🟢", "strong"
     elif 50.0 <= score <= 60.0:
@@ -605,9 +611,6 @@ def get_strength_classification(score: float) -> Tuple[str, str, str]:
     else:
         return "ضعيف", "🔴", "weak"
 
-# =============================================================================
-# 6. دالة تقديم الحلول والعلاجات الفلكية المتقدمة
-# =============================================================================
 def get_advanced_recommendations(
     gender: str,
     venus_sc: float,
@@ -625,24 +628,42 @@ def get_advanced_recommendations(
     
     if gender == "أنثى":
         if is_venus_strong and is_moon_strong and (fem_power > masc_power):
-            recommendations.append("✨ **حالة متوازنة وممتازة:** طاقة الأنوثة والقمر والزهرة في أعلى مستويات التناغم.")
+            recommendations.append("✨ **حالة متوازنة وممتازة:** طاقة الأنوثة والقمر والزهرة في أعلى مستويات التناغم الداخلي والخارجي.")
         else:
             if is_venus_strong and not is_moon_strong:
-                recommendations.append("🏡 **دعم الجانب المنزلي والعاطفي (تقوية القمر فلكياً):** استخدام البابونج والأعشاب المهدئة وتنظيم شؤون المنزل.")
+                recommendations.append("🏡 **دعم الجانب المنزلي والعاطفي (تقوية القمر فلكياً):**")
+                recommendations.append("جلب مربية أو مساعدة كفوءة لتنظيم التدبير المنزلي ورعاية الشؤون اليومية.")
+                recommendations.append("قراءة كتب تعليم الطبخ، فن التدبير المنزلي، وكيفية الاعتناء بالأطفال.")
+                recommendations.append("🌙 **فلكياً - تقوية طاقة القمر:** الأعشاب: البابونج الألماني وزهرة الآلام. الأطعمة: الخضروات الورقية ومنتجات الألبان الطازجة.")
+            
             if not is_venus_strong and is_moon_strong:
-                recommendations.append("💖 **دعم جانب الثقافة الزوجية والعلاقة (تقوية الزهرة فلكياً):** الاهتمام بالجمال والعطور الفواحة والورد المحمدي.")
+                recommendations.append("💖 **دعم جانب الثقافة الزوجية والعلاقة (تقوية الزهرة فلكياً):**")
+                recommendations.append("زيادة قراءة كتب الثقافة الزوجية وفن الحوار مع الشريك.")
+                recommendations.append("🌹 **فلكياً - تقوية طاقة الزهرة:** الأعشاب: بتلات الورد المحمدي واللافندر. الأطعمة: الفواكه الطازجة كالتوت والفراولة والشوكولاتة الداكنة.")
+            
             if (not is_venus_strong and not is_moon_strong) or (fem_power <= masc_power):
-                recommendations.append("🛠️ **برنامج متكامل لتعزيز طاقة الأنوثة والزهرة والقمر معاَ.**")
+                recommendations.append("🛠️ **برنامج متكامل لتعزيز مهارات الزواج والتدبير (تقوية الزهرة والقمر معاً):**")
+                recommendations.append("قراءة كتب الثقافة الزوجية وبناء الألفة والتفاهم المستدام.")
+                recommendations.append("🌸 **فلكياً - تقوية طاقة الزهرة والقمر:** دمج البابونج مع بتلات الورد في منقوع مسائي مهدئ.")
     else:
         if (masc_power > fem_power) and is_sun_strong and is_mars_strong:
-            recommendations.append("👑 **حالة ذكورية قيادية متوازنة:** طاقة الشمس والمريخ تدعم القيادة وتحمل المسؤولية بكفاءة عالية.")
+            recommendations.append("👑 **حالة ذكورية قيادية متوازنة:** طاقة الشمس والمريخ تدعمك بكفاءة عالية للقيادة وتحمل المسؤولية والإنجاب.")
         else:
             if is_sun_strong and not is_mars_strong:
-                recommendations.append("🛠️ **دعم الجانب البدني والمهاري المنزلي (تقوية المريخ فلكياً):** بالتمارين الرياضية وأعشاب الزنجبيل والقرفة.")
+                recommendations.append("🛠️ **دعم الجانب البدني والمهاري المنزلي (تقوية المريخ فلكياً):**")
+                recommendations.append("التعاقد مع شركة صيانة منزلية دورية أو التسجيل في دورات أعمال الصيانة اليدوية والمنزلية.")
+                recommendations.append("🔥 **فلكياً - تقوية طاقة المريخ:** الأعشاب: جذور الزنجبيل الطازج والقرفة والزعتر البري. الأطعمة: اللحوم الحمراء الصحية والمكسرات.")
+            
             if not is_sun_strong and is_mars_strong:
-                recommendations.append("👔 **دعم الجانب القيادي والإداري الأسري (تقوية الشمس فلكياً):** بالتعرض لضوء الشمس الصباحي وإكليل الجبل.")
+                recommendations.append("👔 **دعم الجانب القيادي والإداري الأسري (تقوية الشمس فلكياً):**")
+                recommendations.append("حضور دورات تدريبية متخصصة في تقوية الشخصية والإدارة الاستراتيجية.")
+                recommendations.append("☀️ **فلكياً - تقوية طاقة الشمس:** الأعشاب: إكليل الجبل والبابونج الإيجابي. الأطعمة: الحمضيات الطازجة الغنية بفيتامين سي والعسل الطبيعي.")
+            
             if (not is_sun_strong and not is_mars_strong) or (masc_power <= fem_power):
-                recommendations.append("🚀 **برنامج مكثف لتطوير المهارات القيادية والبدنية (الشمس والمريخ).**")
+                recommendations.append("🚀 **برنامج مكثف لتطوير المهارات الشخصية والقيادية والمنزلية (الشمس والمريخ معاً):**")
+                recommendations.append("الانتظام في التمارين الرياضية وبناء اللياقة البدنية وحضور دورات تطوير الذات.")
+                recommendations.append("⚡ **فلكياً - تقوية طاقة المريخ والشمس:** شاي الزنجبيل بالقرفة صباحاً مع شاي إكليل الجبل عصراً.")
+
     return recommendations
 
 # =============================================================================
@@ -675,6 +696,28 @@ def generate_html_report(data: Dict[str, Any]) -> str:
             <td style="font-size:11.5px; color:#334155; line-height:1.7;">{reasons_html}</td>
         </tr>
         """
+
+    aspects_table_rows = ""
+    for p_name in PERSONAL_PLANETS:
+        asp_list = data["structured_aspects"].get(p_name, [])
+        if asp_list:
+            for asp in asp_list:
+                aspects_table_rows += f"""
+                <tr>
+                    <td style="font-weight:800; color:#1e3a8a;">{ALL_PLANETS_AR[p_name]}</td>
+                    <td>{asp['target']}</td>
+                    <td>{asp['type']}</td>
+                    <td style="text-align:center;">{asp['orb']}</td>
+                    <td style="text-align:center; font-weight:bold; color:{'#16a34a' if '+' in asp['score'] else '#dc2626'};">{asp['score']}</td>
+                </tr>
+                """
+        else:
+            aspects_table_rows += f"""
+            <tr>
+                <td style="font-weight:800; color:#1e3a8a;">{ALL_PLANETS_AR[p_name]}</td>
+                <td colspan="4" style="color:#64748b; font-style:italic;">لا توجد اتصالات رئيسية مؤثرة مرصودة ضمن الأورب المعتمد</td>
+            </tr>
+            """
 
     outer_rows = ""
     for p_name in ["Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"]:
@@ -885,7 +928,7 @@ def generate_html_report(data: Dict[str, Any]) -> str:
         <div class="info-box"><span>طبيعة الخريطة (الحيّز)</span><strong>{data['sect_label']}</strong></div>
     </div>
 
-    <div class="section-title">تقييم الكواكب الشخصية الخمسة (مقياس 100 نقطة) وتفصيل الاتصالات</div>
+    <div class="section-title">تقييم الكواكب الشخصية الخمسة (مقياس 100 نقطة)</div>
     <table>
         <thead>
             <tr>
@@ -894,11 +937,27 @@ def generate_html_report(data: Dict[str, Any]) -> str:
                 <th style="width:10%; text-align:center;">البيت</th>
                 <th style="width:11%; text-align:center;">النتيجة</th>
                 <th style="width:13%; text-align:center;">التصنيف</th>
-                <th style="width:40%;">تفصيل الكرامات، اتصالات الكواكب، الكويكبات، والنجوم الثابتة</th>
+                <th style="width:40%;">ملخص الكرامات والاتصالات</th>
             </tr>
         </thead>
         <tbody>
             {planets_rows}
+        </tbody>
+    </table>
+
+    <div class="section-title">جدول تفاصيل الاتصالات الفلكية الشاملة (مع الكواكب، الكويكبات، والنجوم الثابتة)</div>
+    <table>
+        <thead>
+            <tr>
+                <th style="width:20%;">الكوكب الشخصي</th>
+                <th style="width:25%;">الجهة المتصلة (كوكب/كويكب/نجم ثابت)</th>
+                <th style="width:25%;">نوع الاتصال الهندسي</th>
+                <th style="width:15%; text-align:center;">الفارق (الأورب)</th>
+                <th style="width:15%; text-align:center;">الأثر النقدي</th>
+            </tr>
+        </thead>
+        <tbody>
+            {aspects_table_rows}
         </tbody>
     </table>
 
@@ -1088,9 +1147,10 @@ if submit:
     scores: Dict[str, float] = {}
     reasons: Dict[str, List[str]] = {}
     breakdowns: Dict[str, Dict[str, float]] = {}
+    structured_aspects_all: Dict[str, List[Dict[str, Any]]] = {}
 
     for p_name in PERSONAL_PLANETS:
-        sc, r_list, b_dict = evaluate_planet_100_scale(
+        sc, r_list, b_dict, struct_asp = evaluate_planet_100_scale(
             planet_name=p_name,
             all_planets=all_planets_data,
             asteroids=asteroids_data,
@@ -1101,6 +1161,7 @@ if submit:
         scores[p_name] = sc
         reasons[p_name] = r_list
         breakdowns[p_name] = b_dict
+        structured_aspects_all[p_name] = struct_asp
 
     st.markdown("---")
     st.markdown(f"### 📊 التحليل الفلكي الشامل لـ ({name}) — الجنس: ({gender}) — الموقع: ({location_label})")
@@ -1266,6 +1327,7 @@ if submit:
         "diag_summary": diag_summary,
         "diag_bullets": diag_bullets,
         "recommendations": recommendations,
+        "structured_aspects": structured_aspects_all,
         "border_color": border_color,
         "bg_tint": bg_tint,
         "title_color": title_color
